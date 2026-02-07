@@ -1,0 +1,341 @@
+@page
+@model IndexModel
+
+@section HeaderStats {
+    <div class="header-stats">
+        <div class="stat-item">
+            <span class="stat-label">Total Coinjoins</span>
+            <span class="stat-value">@Model.TotalCoinjoins.ToString("N0")</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Last 24h</span>
+            <span class="stat-value">@Model.Last24hCount</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Volume (24h)</span>
+            <span class="stat-value">@Model.Volume24hBtc.ToString("F2") BTC</span>
+        </div>
+    </div>
+}
+
+<!-- Coordinator Status -->
+<section class="coordinator-section">
+    <h2 class="section-title">Coordinator Status</h2>
+    <div class="coordinator-grid">
+        @foreach (var coord in Model.Coordinators)
+        {
+            <div class="coordinator-card">
+                <div class="coordinator-header">
+                    <div class="coordinator-name">@coord.Name</div>
+                    @if (coord.IsOnline)
+                    {
+                        <span class="status-badge status-online">Online</span>
+                    }
+                    else
+                    {
+                        <span class="status-badge status-offline">Offline</span>
+                    }
+                </div>
+                <div class="coordinator-stats">
+                    <div class="coord-stat">
+                        <span class="coord-stat-label">Total Coinjoins</span>
+                        <span class="coord-stat-value">@coord.TotalCoinjoins</span>
+                    </div>
+                    <div class="coord-stat">
+                        <span class="coord-stat-label">Last 24h</span>
+                        <span class="coord-stat-value">@coord.Last24hCoinjoins</span>
+                    </div>
+                    <div class="coord-stat">
+                        <span class="coord-stat-label">Active Round</span>
+                        <span class="coord-stat-value">
+                            @if (coord.CurrentRound != null)
+                            {
+                                @coord.CurrentRound.PhaseDisplay
+                            }
+                            else
+                            {
+                                <text>None</text>
+                            }
+                        </span>
+                    </div>
+                    <div class="coord-stat">
+                        <span class="coord-stat-label">Inputs Registered</span>
+                        <span class="coord-stat-value">@(coord.CurrentRound?.InputCount.ToString() ?? "0")</span>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</section>
+
+<!-- Filters -->
+<div class="filters">
+    <form method="get" action="/">
+        <div class="filter-row">
+            <span class="filter-label">Filter:</span>
+            <select name="coordinatorFilter" onchange="this.form.submit()">
+                <option value="">All Coordinators</option>
+                @foreach (var coord in Model.Coordinators)
+                {
+                    <option value="@coord.Id" selected="@(Model.CoordinatorFilter == coord.Id ? "selected" : null)">@coord.Name</option>
+                }
+            </select>
+            <select name="statusFilter" onchange="this.form.submit()">
+                <option value="">All Status</option>
+                <option value="confirmed" selected="@(Model.StatusFilter == "confirmed" ? "selected" : null)">Confirmed</option>
+                <option value="unconfirmed" selected="@(Model.StatusFilter == "unconfirmed" ? "selected" : null)">Mempool</option>
+            </select>
+            <input type="text" name="search" placeholder="Search by transaction ID..."
+                   value="@Model.Search" style="flex: 1; min-width: 200px;" />
+        </div>
+    </form>
+</div>
+
+<!-- Transaction List -->
+<section>
+    <h2 class="section-title">Recent Coinjoin Transactions</h2>
+    <div class="transaction-list" id="transactionList">
+        @foreach (var tx in Model.Transactions)
+        {
+            <a class="tx-item" href="@Model.BuildUrl(txId: tx.TxId)">
+                <div class="tx-header">
+                    <span class="tx-id">@tx.TxId[..6]...@tx.TxId[^6..]</span>
+                    <span class="tx-time">@FormatTimeAgo(tx.FirstSeen)</span>
+                </div>
+                <div class="tx-badges">
+                    @if (tx.IsConfirmed)
+                    {
+                        <span class="tx-status tx-confirmed">&#10003; Confirmed</span>
+                    }
+                    else
+                    {
+                        <span class="tx-status tx-mempool">&#9679; Mempool</span>
+                    }
+                    <span class="coordinator-badge">@(tx.Coordinator?.Name ?? "Unknown")</span>
+                </div>
+                <div class="tx-stats-grid">
+                    <div class="tx-stat">
+                        <span class="tx-stat-label">Inputs</span>
+                        <span class="tx-stat-value">@tx.InputCount</span>
+                    </div>
+                    <div class="tx-stat">
+                        <span class="tx-stat-label">Outputs</span>
+                        <span class="tx-stat-value">@tx.OutputCount</span>
+                    </div>
+                    <div class="tx-stat">
+                        <span class="tx-stat-label">Amount</span>
+                        <span class="tx-stat-value">@((tx.TotalInputValue / 100_000_000m).ToString("F2")) BTC</span>
+                    </div>
+                    <div class="tx-stat">
+                        <span class="tx-stat-label">Fee Rate</span>
+                        <span class="tx-stat-value">@tx.FeeRate.ToString("F1") sat/vB</span>
+                    </div>
+                    <div class="tx-stat">
+                        <span class="tx-stat-label">Anonymity Set</span>
+                        <span class="tx-stat-value">@tx.InputCount</span>
+                    </div>
+                    <div class="tx-stat">
+                        @if (tx.IsConfirmed)
+                        {
+                            <span class="tx-stat-label">Confirmations</span>
+                            <span class="tx-stat-value">@tx.Confirmations block@(tx.Confirmations != 1 ? "s" : "")</span>
+                        }
+                        else
+                        {
+                            <span class="tx-stat-label">Size</span>
+                            <span class="tx-stat-value">@tx.VSize.ToString("N0") vB</span>
+                        }
+                    </div>
+                </div>
+            </a>
+        }
+
+        @if (!Model.Transactions.Any())
+        {
+            <div class="empty-state">
+                No coinjoin transactions found matching your filters.
+            </div>
+        }
+    </div>
+
+    @if (Model.TotalPages > 1)
+    {
+        <div class="pagination">
+            @if (Model.Page > 1)
+            {
+                <a href="@Model.BuildUrl(page: Model.Page - 1)">&#8592; Previous</a>
+            }
+            <span class="pagination-info">Page @Model.Page of @Model.TotalPages</span>
+            @if (Model.Page < Model.TotalPages)
+            {
+                <a href="@Model.BuildUrl(page: Model.Page + 1)">Next &#8594;</a>
+            }
+        </div>
+    }
+</section>
+
+<!-- Transaction Detail Modal -->
+@if (Model.ShowModal && Model.SelectedTransaction != null)
+{
+    var tx = Model.SelectedTransaction;
+    var closeUrl = Model.BuildUrl();
+
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Transaction Details</h3>
+                <a href="@closeUrl" class="close-btn">&times;</a>
+            </div>
+            <div class="modal-body">
+                <div class="detail-section">
+                    <h4 class="detail-title">General Information</h4>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">Transaction ID</span>
+                            <span class="detail-value" style="font-family: 'Courier New', monospace; font-size: 13px;">@tx.TxId</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Status</span>
+                            <span class="detail-value">
+                                @if (tx.IsConfirmed)
+                                {
+                                    <text>Confirmed (@tx.Confirmations confirmations)</text>
+                                }
+                                else
+                                {
+                                    <text>Mempool</text>
+                                }
+                            </span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Coordinator</span>
+                            <span class="detail-value">@(tx.Coordinator?.Name ?? "Unknown")</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">First Seen</span>
+                            <span class="detail-value">@FormatTimeAgo(tx.FirstSeen)</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Size</span>
+                            <span class="detail-value">@tx.VSize.ToString("N0") vBytes</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Fee</span>
+                            <span class="detail-value">@((tx.FeePaid / 100_000_000m).ToString("F8")) BTC</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Fee Rate</span>
+                            <span class="detail-value">@tx.FeeRate.ToString("F1") sat/vB</span>
+                        </div>
+                        @if (tx.BlockHeight.HasValue)
+                        {
+                            <div class="detail-item">
+                                <span class="detail-label">Block Height</span>
+                                <span class="detail-value">@tx.BlockHeight.Value.ToString("N0")</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <div class="detail-section">
+                    <h4 class="detail-title">Coinjoin Statistics</h4>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">Input Count</span>
+                            <span class="detail-value">@tx.InputCount</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Output Count</span>
+                            <span class="detail-value">@tx.OutputCount</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Total Input</span>
+                            <span class="detail-value">@((tx.TotalInputValue / 100_000_000m).ToString("F8")) BTC</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Total Output</span>
+                            <span class="detail-value">@((tx.TotalOutputValue / 100_000_000m).ToString("F8")) BTC</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Anonymity Set</span>
+                            <span class="detail-value">@tx.InputCount</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Fee Paid</span>
+                            <span class="detail-value">@tx.FeePaid.ToString("N0") sats</span>
+                        </div>
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(tx.BlockHash))
+                {
+                    <div class="detail-section">
+                        <h4 class="detail-title">Block Information</h4>
+                        <div class="detail-grid">
+                            <div class="detail-item">
+                                <span class="detail-label">Block Hash</span>
+                                <span class="detail-value" style="font-family: 'Courier New', monospace; font-size: 13px;">@tx.BlockHash</span>
+                            </div>
+                            @if (tx.ConfirmedAt.HasValue)
+                            {
+                                <div class="detail-item">
+                                    <span class="detail-label">Confirmed At</span>
+                                    <span class="detail-value">@tx.ConfirmedAt.Value.ToString("yyyy-MM-dd HH:mm:ss") UTC</span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script>
+        // Close modal on overlay click
+        (function() {
+            var overlay = document.getElementById('modal-overlay');
+            if (overlay) {
+                overlay.addEventListener('click', function(e) {
+                    if (e.target === overlay) {
+                        var closeBtn = overlay.querySelector('.close-btn');
+                        if (closeBtn) window.location.href = closeBtn.href;
+                    }
+                });
+            }
+        })();
+
+        // Close modal on Escape
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                var closeBtn = document.querySelector('.modal-overlay .close-btn');
+                if (closeBtn) window.location.href = closeBtn.href;
+            }
+        });
+
+        // Debounced search
+        (function() {
+            var searchInput = document.querySelector('input[name="search"]');
+            if (!searchInput) return;
+            var timer;
+            searchInput.addEventListener('input', function() {
+                clearTimeout(timer);
+                timer = setTimeout(function() {
+                    searchInput.closest('form').submit();
+                }, 600);
+            });
+        })();
+    </script>
+}
+
+@functions {
+    string FormatTimeAgo(DateTime dt)
+    {
+        var span = DateTime.UtcNow - dt;
+        if (span.TotalMinutes < 1) return "just now";
+        if (span.TotalMinutes < 60) return $"{(int)span.TotalMinutes}m ago";
+        if (span.TotalHours < 24) return $"{(int)span.TotalHours}h ago";
+        return $"{(int)span.TotalDays}d ago";
+    }
+}
