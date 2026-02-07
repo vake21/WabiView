@@ -1,0 +1,64 @@
+# Docker Compose for local development/testing
+# For StartOS deployment, use the Dockerfile directly
+
+version: '3.8'
+
+services:
+  wabiview:
+    build:
+      context: ..
+      dockerfile: startos/Dockerfile
+    container_name: wabiview
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - wabiview_data:/data
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - WABIVIEW_PORT=8080
+      - WABIVIEW_DATA_PATH=/data
+      # Bitcoin Core RPC settings (adjust for your setup)
+      - BitcoinRpc__Host=bitcoind
+      - BitcoinRpc__Port=8332
+      - BitcoinRpc__User=bitcoin
+      - BitcoinRpc__Password=bitcoin
+      # Electrs settings (adjust for your setup)
+      - Electrs__Host=electrs
+      - Electrs__Port=50001
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - wabiview_network
+
+  # Optional: Bitcoin Core for local testing
+  # Uncomment if you want to run a local regtest node
+  # bitcoind:
+  #   image: lncm/bitcoind:v25.0
+  #   container_name: bitcoind
+  #   restart: unless-stopped
+  #   volumes:
+  #     - bitcoin_data:/data/.bitcoin
+  #   environment:
+  #     - BITCOIN_DATA=/data/.bitcoin
+  #   command:
+  #     - -regtest
+  #     - -server
+  #     - -rpcuser=bitcoin
+  #     - -rpcpassword=bitcoin
+  #     - -rpcallowip=0.0.0.0/0
+  #     - -rpcbind=0.0.0.0
+  #   networks:
+  #     - wabiview_network
+
+volumes:
+  wabiview_data:
+  # bitcoin_data:
+
+networks:
+  wabiview_network:
+    driver: bridge
